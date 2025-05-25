@@ -9,7 +9,21 @@ use Carbon\Carbon;
 
 class TimeLogController extends Controller
 {
-    
+    public function show($id)
+    {
+        $time_logs = TimeLog::find($id);
+
+        if (!$time_logs) {
+            return response()->json(['message' => 'Time log not found'], 404);
+        }
+
+        if ($time_logs->user_id !== Auth::id()) {
+            return response()->json(['message' => 'Unauthorized | Try another log'], 403);
+        }
+
+        return response()->json($time_logs, 200);
+    }
+
 
     public function store(Request $request)
     {
@@ -19,7 +33,12 @@ class TimeLogController extends Controller
             "tag" => "required|in:billable,non-billable"
         ]);
 
-        $time_logs = TimeLog::create($request->all());
+        $time_logs = TimeLog::create([
+            "user_id" => Auth::id(),
+            "project_id" => $request->project_id,
+            "description" => $request->description,
+            "tag" => $request->tag,
+        ]);
 
         return response()->json($time_logs, 201);
     }
@@ -31,13 +50,30 @@ class TimeLogController extends Controller
 
         $request->validate([
             "project_id" => "required|exists:projects,id",
-            "start_time" => "date",
-            "end_time" => "date",
+            "start_time" => "date|nullable",
+            "end_time" => "date|nullable",
             "description" => "required|string|max:255",
-            "hours" => "numeric",
+            "hours" => "numeric|nullable",
         ]);
 
-        $time_log->update($request->only('start_time', 'end_time', 'description'));
+        if ($request->has('start_time') && $request->has('end_time')) {
+            $start = Carbon::parse($request->start_time);
+            $end = Carbon::parse($request->end_time);
+            $time_log->hours = $start->floatDiffInHours($end);
+        } elseif ($request->has('start_time')) {
+            $time_log->start_time = Carbon::parse($request->start_time);
+        } elseif ($request->has('end_time')) {
+            $time_log->end_time = Carbon::parse($request->end_time);
+        }
+
+        if (!$time_log->start_time && !$time_log->end_time) {
+            $time_log->hours = null;
+        }
+
+        $time_log->project_id = $request->project_id;
+        $time_log->description = $request->description;
+        $time_log->tag = $request->tag ?? $time_log->tag;
+        $time_log->save();
 
         return response()->json($time_log, 200);
 
@@ -54,7 +90,7 @@ class TimeLogController extends Controller
     public function start_time_logs(Request $request, $id)
     {
         $time_logs = TimeLog::where("id", $id)->first();
-        $time_logs->start_time = $request->start_time;
+        $time_logs->start_time = Carbon::parse($request->start_time);
 
         $time_logs->save();
 
@@ -64,12 +100,12 @@ class TimeLogController extends Controller
     public function end_time_logs(Request $request, $id)
     {
         $time_log = TimeLog::where("id", $id)->first();
-        $time_log->end_time = $request->end_time;
+        $time_log->end_time = Carbon::parse($request->end_time);
 
         if ($time_log->start_time && $time_log->end_time) {
             $start = Carbon::parse($time_log->start_time);
             $end = Carbon::parse($time_log->end_time);
-            $time_log->hours = $end->floatDiffInHours($start);
+            $time_log->hours = $start->floatDiffInHours($end);
         }
 
 
@@ -86,7 +122,9 @@ class TimeLogController extends Controller
 
     public function logsByUser()
     {
-        $time_logs = TimeLog::where('user_id', Auth::id())->orderBy("created_at", "desc")->paginate(10);
+        $time_logs = TimeLog::where('user_id', Auth::id())
+            ->orderBy("created_at", "desc")
+            ->paginate(10);
         return response()->json($time_logs);
     }
 
@@ -106,17 +144,39 @@ class TimeLogController extends Controller
     }
 
     public function logsByWeek(Request $request)
-{
-    $start = Carbon::parse($request->start_date)->startOfWeek();
-    $end = Carbon::parse($request->start_date)->endOfWeek();
+    {
+        $start = Carbon::parse($request->start_date)->startOfWeek();
+        $end = Carbon::parse($request->start_date)->endOfWeek();
 
-    $logs = TimeLog::where('user_id', Auth::id())
-                ->whereBetween('created_at', [$start, $end])
-                ->orderBy('created_at', 'desc')
-                ->get();
+        $logs = TimeLog::where('user_id', Auth::id())
+            ->whereBetween('created_at', [$start, $end])
+            ->orderBy('created_at', 'desc')
+            ->get();
 
-    return response()->json($logs);
-}
+        return response()->json($logs);
+    }
+
+    public function logsBetweenDates(Request $request)
+    {
+        $request->validate([
+            'from' => 'required|date',
+            'to' => 'required|date|after_or_equal:from',
+        ]);
+
+        $start = Carbon::parse($request->from)->startOfDay();
+        $end = Carbon::parse($request->to)->endOfDay();
+
+        $logs = TimeLog::where('user_id', Auth::id())
+            ->whereBetween('created_at', [$start, $end])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return response()->json([
+            'from' => $start->toDateString(),
+            'to' => $end->toDateString(),
+            'logs' => $logs,
+        ]);
+    }
 
     // Total Hours
 
@@ -144,9 +204,13 @@ class TimeLogController extends Controller
 
     public function totalHoursByClient($client_id)
     {
-        $total = TimeLog::whereHas('project', function ($query) use ($client_id) {
-            $query->where('client_id', $client_id);
-        })->sum('hours');
+        $total = TimeLog::whereHas(
+            'project',
+            function ($query) use ($client_id) {
+                $query->where('client_id', $client_id);
+            }
+        )
+            ->sum('hours');
 
         return response()->json(['client_id' => $client_id, 'total_hours' => $total]);
     }

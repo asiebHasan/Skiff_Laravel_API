@@ -42,8 +42,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('project/{id}', [ProjectController::class, 'destroy']);
 
     // timelog
+    Route::get('/time-logs/{id}', [TimeLogController::class, 'show']);
     Route::post('/time-logs', [TimeLogController::class, 'store']);
-    Route::put('/time-logs/{id}', [TimeLogController::class, 'update']);
+    Route::post('/time-logs/{id}', [TimeLogController::class, 'update']);
     Route::delete('/time-logs/{id}', [TimeLogController::class, 'destroy']);
 
     // Start & End logging
@@ -51,10 +52,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/time-logs/{id}/end', [TimeLogController::class, 'end_time_logs']);
 
     // Logs by filters
-    Route::get('/time-logs/project/{id}', [TimeLogController::class, 'logsByProject']);
-    Route::get('/time-logs/user', [TimeLogController::class, 'logsByUser']);
-    Route::post('/time-logs/day', [TimeLogController::class, 'logsByDay']);
-    Route::post('/time-logs/week', [TimeLogController::class, 'logsByWeek']);
+    Route::get('/time-logs/logs/project/{id}', [TimeLogController::class, 'logsByProject']);
+    Route::get('/time-logs/logs/user', [TimeLogController::class, 'logsByUser']);
+    Route::get('/time-logs/logs/day', [TimeLogController::class, 'logsByDay']);
+    Route::get('/time-logs/logs/week', [TimeLogController::class, 'logsByWeek']);
+    Route::get('/time-logs/logs/between', [TimeLogController::class, 'logsBetweenDates']);
+
 
     // Total hours
     Route::get('/time-logs/total/project/{id}', [TimeLogController::class, 'totalHoursByProject']);
