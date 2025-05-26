@@ -21,26 +21,36 @@ A full-featured time tracking application for freelancers and teams, built with 
 git clone https://github.com/asiebHasan/Skiff_Laravel_API.git
 cd Skiff_Laravel_API
 cd freelance_time_tracker_api
+```
 
 # Install dependencies
+```
 composer install
+```
 
 # Copy and configure environment
+```
 cp .env.example .env
 php artisan key:generate
+```
 
 # Configure your DB settings in .env
 # DB_DATABASE, DB_USERNAME, DB_PASSWORD
 
 # Run migrations
+```
 php artisan migrate
+```
 
 # Seed with test data (optional)
+```
 php artisan db:seed
+```
 
 # Serve the app
+```
 php artisan serve
-
+```
 
 ## 🧱 Database Structure
 The following tables define the core schema for the time tracking system:
