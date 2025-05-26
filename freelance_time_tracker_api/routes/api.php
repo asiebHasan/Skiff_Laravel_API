@@ -7,17 +7,6 @@ use App\Http\Controllers\ClientController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\TimeLogController;
 
-/* 
-|--------------------------------------------------------------------------
-| API Routes
-|--------------------------------------------------------------------------
-|
-| Here is where you can register API routes for your application. These
-| routes are loaded by the RouteServiceProvider within a group which
-| is assigned the "api" middleware group. Enjoy building your API!
-|
-*/
-
 
 
 Route::post('/register', [AuthController::class, 'register']);
@@ -63,5 +52,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/time-logs/total/project/{id}', [TimeLogController::class, 'totalHoursByProject']);
     Route::post('/time-logs/total/day', [TimeLogController::class, 'totalHoursByDay']);
     Route::get('/time-logs/total/client/{client_id}', [TimeLogController::class, 'totalHoursByClient']);
+
+    // export PDF
+    Route::post('/time-logs/export/pdf', [TimeLogController::class, 'exportSelectedLogsToPDF']);
 
 });

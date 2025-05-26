@@ -4,8 +4,11 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use App\Models\TimeLog;
 use Carbon\Carbon;
+use Barryvdh\DomPDF\Facade\Pdf;
+
+use App\Models\TimeLog;
+use App\Models\Project;
 
 class TimeLogController extends Controller
 {
@@ -33,6 +36,12 @@ class TimeLogController extends Controller
             "tag" => "required|in:billable,non-billable"
         ]);
 
+        $project = Project::findOrFail($request->project_id);
+
+        if ($project->client_id !== Auth::user()->client_id) {
+            return response()->json(['message' => 'Unauthorized | You do not have access to this project'], 403);
+        }
+
         $time_logs = TimeLog::create([
             "user_id" => Auth::id(),
             "project_id" => $request->project_id,
@@ -55,6 +64,11 @@ class TimeLogController extends Controller
             "description" => "required|string|max:255",
             "hours" => "numeric|nullable",
         ]);
+
+        $project = Project::findOrFail($request->project_id);
+        if ($project->client_id !== Auth::user()->client_id) {
+            return response()->json(['message' => 'Unauthorized | You do not have access to this project'], 403);
+        }
 
         if ($request->has('start_time') && $request->has('end_time')) {
             $start = Carbon::parse($request->start_time);
@@ -81,7 +95,13 @@ class TimeLogController extends Controller
 
     public function destroy($id)
     {
+        
         $time_log = TimeLog::findOrFail($id);
+
+        $project = Project::findOrFail($time_log->project_id);
+        if ($project->client_id !== Auth::user()->client_id) {
+            return response()->json(['message' => 'Unauthorized | You do not have access to this project'], 403);
+        }
         $time_log->delete();
 
         return response()->json(["message" => "Log deleted"], 200);
@@ -213,6 +233,37 @@ class TimeLogController extends Controller
             ->sum('hours');
 
         return response()->json(['client_id' => $client_id, 'total_hours' => $total]);
+    }
+
+    public function exportSelectedLogsToPDF(Request $request)
+    {
+        // echo "Exporting selected logs to PDF...";
+        $request->validate([
+            'logs' => 'required|array',
+            'logs.*' => 'required|integer|exists:time_logs,id',
+        ]);
+
+        $time_logs = TimeLog::with('project.client') // eager load project and client
+            ->whereIn('id', $request->logs)
+            ->where('user_id', Auth::id())
+            ->get();
+
+
+
+        if ($time_logs->isEmpty()) {
+            return response()->json(['message' => 'No logs found for export'], 404);
+        }
+
+        $pdf = Pdf::loadView('pdf.time_logs', ['logs' => $time_logs, "user" => Auth::user()]);
+
+        // echo json_encode($time_logs);
+        $filePath = storage_path('app/public/time_logs_export.pdf');
+        $pdf->save($filePath);
+
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, 'time_logs_export.pdf');
     }
 
 }
